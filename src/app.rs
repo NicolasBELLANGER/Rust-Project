@@ -1,9 +1,16 @@
 use crate::map::Map;
 use crate::messages::ResourceKind;
 
+use std::sync::{Arc, Mutex};
+
+pub type SharedApp = Arc<Mutex<App>>;
+
+pub fn new_shared(width: usize, height: usize) -> SharedApp {
+    Arc::new(Mutex::new(App::new(width, height)))
+}
+
 pub struct App {
     pub map: Map,
-    pub base: Base,
     pub collected_energy: u32,
     pub collected_crystals: u32,
     pub known_resources: Vec<(usize, usize, ResourceKind)>,
