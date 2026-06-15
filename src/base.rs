@@ -7,7 +7,7 @@ pub struct Base {
 }
 
 impl Base {
-    pub fn new(map: Map) -> Self {
+    pub fn new(map: &Map) -> Self {
         Base {
             pos: (map.width / 2, map.height / 2),
         }
@@ -20,9 +20,6 @@ impl Base {
             },
             RobotMessage::ObstacleFound { pos } => {
                 app.known_obstacles.push((pos.0, pos.1));
-            },
-            RobotMessage::BasePosition { pos } => {
-                app.base_position = pos;
             },
             RobotMessage::ResourceCollected { pos: _, amount, kind } => {
                 match kind {

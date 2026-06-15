@@ -1,6 +1,7 @@
 use noise::{NoiseFn, Perlin};
 use rand::Rng;
 
+#[derive(Debug, Clone)]
 pub enum MapTile {
     Empty,
     Obstacle,
