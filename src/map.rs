@@ -1,4 +1,4 @@
-use noise::{NoiseFn, Perlin};
+use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use rand::Rng;
 
 #[derive(Debug, Clone)]
@@ -16,42 +16,97 @@ pub struct Map {
     pub height: usize,
 }
 
-
 impl Map {
     pub fn new(width: usize, height: usize) -> Self {
-        let perlin = Perlin::new(rand::random());
+        let seed: u32 = rand::random();
         let mut rng = rand::thread_rng();
+
+        // Fbm (Fractal Brownian Motion) = superposition de plusieurs octaves de Perlin
+        // Donne un terrain naturel avec détails à différentes échelles
+        let terrain = Fbm::<Perlin>::new(seed)
+            .set_octaves(5)
+            .set_frequency(1.0)
+            .set_persistence(0.5)
+            .set_lacunarity(2.0);
+
+        // Deuxième couche de bruit pour placer les ressources de façon groupée
+        let resource_layer = Perlin::new(seed.wrapping_add(1));
+
+        // Échelle adaptée à la taille : on veut traverser ~1.5 périodes sur la map
+        let scale = 1.5 / width.max(height) as f64;
 
         let mut tiles = vec![vec![MapTile::Empty; width]; height];
 
         for y in 0..height {
             for x in 0..width {
-                let noise_val = perlin.get([x as f64 * 0.1, y as f64 * 0.1]);
-                if noise_val > 0.3 {
-                    tiles[y][x] = MapTile::Obstacle;
-                }
+                let nx = x as f64 * scale;
+                let ny = y as f64 * scale;
+
+                // Fbm sort dans [-1.0, 1.0] environ
+                let terrain_val = terrain.get([nx, ny]);
+                // Perlin basique sort dans [-0.7, 0.7] environ
+                let resource_val = resource_layer.get([nx * 2.5, ny * 2.5]);
+
+                tiles[y][x] = if terrain_val > 0.15 {
+                    // Zones hautes = obstacles (rochers, murs)
+                    MapTile::Obstacle
+                } else if terrain_val < -0.2 && resource_val > 0.45 {
+                    // Zones basses avec pic resource → cristaux
+                    MapTile::Crystal(rng.gen_range(50..=200))
+                } else if terrain_val < -0.1 && resource_val < -0.45 {
+                    // Zones basses avec creux resource → énergie
+                    MapTile::Energy(rng.gen_range(50..=200))
+                } else {
+                    MapTile::Empty
+                };
             }
         }
 
+        // Dégager une zone sûre (rayon 2) autour de la base
         let base_x = width / 2;
         let base_y = height / 2;
+        for dy in -2i32..=2 {
+            for dx in -2i32..=2 {
+                let cx = (base_x as i32 + dx).clamp(0, width as i32 - 1) as usize;
+                let cy = (base_y as i32 + dy).clamp(0, height as i32 - 1) as usize;
+                tiles[cy][cx] = MapTile::Empty;
+            }
+        }
         tiles[base_y][base_x] = MapTile::Base;
 
-        let mut placed = 0;
-        while placed < 10 {
+        // Garantir un minimum de ressources si le bruit n'en a pas placé assez
+        let energy_count = tiles.iter().flatten().filter(|t| matches!(t, MapTile::Energy(_))).count();
+        let crystal_count = tiles.iter().flatten().filter(|t| matches!(t, MapTile::Crystal(_))).count();
+
+        for _ in energy_count..3usize.saturating_sub(energy_count) {
+            Self::place_resource_randomly(&mut tiles, width, height, &mut rng, false);
+        }
+        for _ in crystal_count..3usize.saturating_sub(crystal_count) {
+            Self::place_resource_randomly(&mut tiles, width, height, &mut rng, true);
+        }
+
+        Map { tiles, width, height }
+    }
+
+    fn place_resource_randomly(
+        tiles: &mut Vec<Vec<MapTile>>,
+        width: usize,
+        height: usize,
+        rng: &mut impl Rng,
+        is_crystal: bool,
+    ) {
+        for _ in 0..200 {
             let x = rng.gen_range(0..width);
             let y = rng.gen_range(0..height);
             if matches!(tiles[y][x], MapTile::Empty) {
-                if placed < 5 {
-                    tiles[y][x] = MapTile::Energy(rng.gen_range(50..=200));
+                tiles[y][x] = if is_crystal {
+                    MapTile::Crystal(rng.gen_range(50..=200))
                 } else {
-                    tiles[y][x] = MapTile::Crystal(rng.gen_range(50..=200));
-                }
-                placed += 1;
+                    MapTile::Energy(rng.gen_range(50..=200))
+                };
+                return;
             }
         }
-        
-        Map { tiles, width, height }
     }
 
     pub fn is_walkable(&self, x: usize, y: usize) -> bool {
@@ -61,4 +116,3 @@ impl Map {
         !matches!(self.tiles[y][x], MapTile::Obstacle)
     }
 }
-
