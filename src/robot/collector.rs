@@ -11,12 +11,13 @@ enum State {
     Idle,
     GoingTo {
         target: (usize, usize),
+        kind: ResourceKind,
         path: Vec<(usize, usize)>,
     },
     Returning {
-        path: Vec<(usize, usize)>,
-        amount: u32,
+        target: (usize, usize),
         kind: ResourceKind,
+        path: Vec<(usize, usize)>,
     },
 }
 
@@ -47,25 +48,27 @@ impl Collector {
 
                 match &mut state {
                     State::Idle => {
-                        // Trouver la première ressource connue et non revendiquée
-                        let target = app
+                        let assignment = app
                             .known_resources
                             .iter()
                             .find(|(x, y, _)| !app.claimed_resources.contains(&(*x, *y)))
-                            .map(|(x, y, _)| (*x, *y));
+                            .map(|(x, y, kind)| ((*x, *y), *kind));
 
-                        if let Some(target_pos) = target {
+                        if let Some((target_pos, kind)) = assignment {
                             if let Some(path) = bfs(&app, self.pos, target_pos) {
                                 app.claimed_resources.push(target_pos);
-                                next_state = Some(State::GoingTo { target: target_pos, path });
+                                next_state = Some(State::GoingTo {
+                                    target: target_pos,
+                                    kind,
+                                    path,
+                                });
                             }
                         }
                     }
 
-                    State::GoingTo { target, path } => {
+                    State::GoingTo { target, kind: _, path } => {
                         let target = *target;
 
-                        // Avancer d'un pas
                         if let Some(&next) = path.first() {
                             if app.map.is_walkable(next.0, next.1) {
                                 path.remove(0);
@@ -76,36 +79,33 @@ impl Collector {
                             }
                         }
 
-                        // Arrivé à la ressource ?
                         if self.pos == target {
-                            let collected = match app.map.tiles[target.1][target.0] {
-                                MapTile::Energy(a) => Some((a, ResourceKind::Energy)),
-                                MapTile::Crystal(a) => Some((a, ResourceKind::Crystal)),
-                                _ => None,
-                            };
-
-                            if let Some((amount, kind)) = collected {
-                                app.map.tiles[target.1][target.0] = MapTile::Empty;
-                                app.known_resources
-                                    .retain(|(x, y, _)| !(*x == target.0 && *y == target.1));
-                                app.claimed_resources.retain(|&p| p != target);
+                            let tile = app.map.tiles[target.1][target.0].clone();
+                            if let Some((new_tile, collected_kind)) = take_one_unit(&tile) {
+                                app.map.tiles[target.1][target.0] = new_tile.clone();
+                                if matches!(new_tile, MapTile::Empty) {
+                                    app.known_resources
+                                        .retain(|(x, y, _)| !(*x == target.0 && *y == target.1));
+                                }
 
                                 let base_pos = app.base.pos;
                                 let return_path = bfs(&app, self.pos, base_pos).unwrap_or_default();
-                                next_state = Some(State::Returning { path: return_path, amount, kind });
+                                next_state = Some(State::Returning {
+                                    target,
+                                    kind: collected_kind,
+                                    path: return_path,
+                                });
                             } else {
-                                // Ressource déjà ramassée par un autre
                                 app.claimed_resources.retain(|&p| p != target);
                                 next_state = Some(State::Idle);
                             }
                         }
                     }
 
-                    State::Returning { path, amount, kind } => {
-                        let amount = *amount;
+                    State::Returning { target, kind, path } => {
+                        let target = *target;
                         let kind = *kind;
 
-                        // Avancer d'un pas vers la base
                         if let Some(&next) = path.first() {
                             if app.map.is_walkable(next.0, next.1) {
                                 path.remove(0);
@@ -116,15 +116,27 @@ impl Collector {
                             }
                         }
 
-                        // Chemin terminé = arrivée à la base
                         if path.is_empty() {
                             tx.send(RobotMessage::ResourceCollected {
                                 pos: self.pos,
-                                amount,
+                                amount: 1,
                                 kind,
                             })
                             .ok();
-                            next_state = Some(State::Idle);
+
+                            if resource_remaining(&app.map.tiles[target.1][target.0]) {
+                                if let Some(path) = bfs(&app, self.pos, target) {
+                                    next_state = Some(State::GoingTo { target, kind, path });
+                                } else {
+                                    app.claimed_resources.retain(|&p| p != target);
+                                    next_state = Some(State::Idle);
+                                }
+                            } else {
+                                app.known_resources
+                                    .retain(|(x, y, _)| !(*x == target.0 && *y == target.1));
+                                app.claimed_resources.retain(|&p| p != target);
+                                next_state = Some(State::Idle);
+                            }
                         }
                     }
                 }
@@ -137,7 +149,35 @@ impl Collector {
     }
 }
 
-// BFS simple sur la grille pour trouver le plus court chemin
+fn take_one_unit(tile: &MapTile) -> Option<(MapTile, ResourceKind)> {
+    match tile {
+        MapTile::Energy(n) if *n > 0 => {
+            let remaining = n - 1;
+            let new_tile = if remaining == 0 {
+                MapTile::Empty
+            } else {
+                MapTile::Energy(remaining)
+            };
+            Some((new_tile, ResourceKind::Energy))
+        }
+        MapTile::Crystal(n) if *n > 0 => {
+            let remaining = n - 1;
+            let new_tile = if remaining == 0 {
+                MapTile::Empty
+            } else {
+                MapTile::Crystal(remaining)
+            };
+            Some((new_tile, ResourceKind::Crystal))
+        }
+        _ => None,
+    }
+}
+
+fn resource_remaining(tile: &MapTile) -> bool {
+    matches!(tile, MapTile::Energy(n) if *n > 0)
+        || matches!(tile, MapTile::Crystal(n) if *n > 0)
+}
+
 fn bfs(app: &App, start: (usize, usize), goal: (usize, usize)) -> Option<Vec<(usize, usize)>> {
     if start == goal {
         return Some(vec![]);
