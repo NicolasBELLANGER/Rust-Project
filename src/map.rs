@@ -86,10 +86,10 @@ impl Map {
             .filter(|t| matches!(t, MapTile::Crystal(_)))
             .count();
 
-        for _ in energy_count..3usize.saturating_sub(energy_count) {
+        for _ in 0..3_usize.saturating_sub(energy_count) {
             Self::place_resource_randomly(&mut tiles, width, height, &mut rng, false);
         }
-        for _ in crystal_count..3usize.saturating_sub(crystal_count) {
+        for _ in 0..3_usize.saturating_sub(crystal_count) {
             Self::place_resource_randomly(&mut tiles, width, height, &mut rng, true);
         }
 

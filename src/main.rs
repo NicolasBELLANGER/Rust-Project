@@ -18,7 +18,8 @@ use crossterm::{
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 use app::new_shared;
-use messages::{ResourceKind, RobotMessage};
+use base::Base;
+use messages::RobotMessage;
 use robot::{Collector, Scout};
 
 const NUM_SCOUTS: usize = 5;
@@ -71,30 +72,10 @@ fn main() -> io::Result<()> {
     let mut last_tick = Instant::now();
 
     loop {
-        // Traiter tous les messages en attente des robots
+        // La base agrège tous les messages des robots
         while let Ok(msg) = rx.try_recv() {
             let mut app = shared.lock().unwrap();
-            match msg {
-                RobotMessage::ResourceFound { pos, kind } => {
-                    let already_known = app
-                        .known_resources
-                        .iter()
-                        .any(|(x, y, _)| *x == pos.0 && *y == pos.1);
-                    if !already_known {
-                        app.known_resources.push((pos.0, pos.1, kind));
-                    }
-                }
-                RobotMessage::ObstacleFound { pos } => {
-                    if !app.known_obstacles.contains(&(pos.0, pos.1)) {
-                        app.known_obstacles.push(pos);
-                    }
-                }
-                RobotMessage::ResourceCollected { amount, kind, .. } => match kind {
-                    ResourceKind::Energy => app.collected_energy += amount,
-                    ResourceKind::Crystal => app.collected_crystals += amount,
-                },
-                RobotMessage::GoCollect { .. } => {}
-            }
+            Base::handle_message(&mut app, msg);
         }
 
         {
