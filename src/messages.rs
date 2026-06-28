@@ -5,6 +5,7 @@ pub enum RobotMessage {
     GoCollect { pos: (usize, usize) },
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum ResourceKind {
     Energy,
     Crystal,

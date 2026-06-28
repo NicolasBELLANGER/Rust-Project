@@ -18,6 +18,9 @@ pub struct App {
     pub known_resources: Vec<(usize, usize, ResourceKind)>,
     pub known_obstacles: Vec<(usize, usize)>,
     pub active: bool,
+    pub scouts: Vec<(usize, usize)>,
+    pub collectors: Vec<(usize, usize)>,
+    pub claimed_resources: Vec<(usize, usize)>,
 }
 
 impl App {
@@ -32,6 +35,9 @@ impl App {
             known_resources: Vec::new(),
             known_obstacles: Vec::new(),
             active: true,
+            scouts: Vec::new(),
+            collectors: Vec::new(),
+            claimed_resources: Vec::new(),
         }
     }
 }

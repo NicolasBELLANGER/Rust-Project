@@ -23,7 +23,7 @@ impl Map {
 
         // Fbm (Fractal Brownian Motion) = superposition de plusieurs octaves de Perlin
         // Donne un terrain naturel avec détails à différentes échelles
-        let terrain = Fbm::<Perlin>::new(seed)
+        let field = Fbm::<Perlin>::new(seed)
             .set_octaves(5)
             .set_frequency(1.0)
             .set_persistence(0.5)
@@ -43,17 +43,17 @@ impl Map {
                 let ny = y as f64 * scale;
 
                 // Fbm sort dans [-1.0, 1.0] environ
-                let terrain_val = terrain.get([nx, ny]);
+                let field_val = field.get([nx, ny]);
                 // Perlin basique sort dans [-0.7, 0.7] environ
                 let resource_val = resource_layer.get([nx * 2.5, ny * 2.5]);
 
-                tiles[y][x] = if terrain_val > 0.15 {
+                tiles[y][x] = if field_val > 0.15 {
                     // Zones hautes = obstacles (rochers, murs)
                     MapTile::Obstacle
-                } else if terrain_val < -0.2 && resource_val > 0.45 {
+                } else if field_val < -0.2 && resource_val > 0.45 {
                     // Zones basses avec pic resource → cristaux
                     MapTile::Crystal(rng.gen_range(50..=200))
-                } else if terrain_val < -0.1 && resource_val < -0.45 {
+                } else if field_val < -0.1 && resource_val < -0.45 {
                     // Zones basses avec creux resource → énergie
                     MapTile::Energy(rng.gen_range(50..=200))
                 } else {
@@ -75,8 +75,16 @@ impl Map {
         tiles[base_y][base_x] = MapTile::Base;
 
         // Garantir un minimum de ressources si le bruit n'en a pas placé assez
-        let energy_count = tiles.iter().flatten().filter(|t| matches!(t, MapTile::Energy(_))).count();
-        let crystal_count = tiles.iter().flatten().filter(|t| matches!(t, MapTile::Crystal(_))).count();
+        let energy_count = tiles
+            .iter()
+            .flatten()
+            .filter(|t| matches!(t, MapTile::Energy(_)))
+            .count();
+        let crystal_count = tiles
+            .iter()
+            .flatten()
+            .filter(|t| matches!(t, MapTile::Crystal(_)))
+            .count();
 
         for _ in energy_count..3usize.saturating_sub(energy_count) {
             Self::place_resource_randomly(&mut tiles, width, height, &mut rng, false);
@@ -85,7 +93,11 @@ impl Map {
             Self::place_resource_randomly(&mut tiles, width, height, &mut rng, true);
         }
 
-        Map { tiles, width, height }
+        Map {
+            tiles,
+            width,
+            height,
+        }
     }
 
     fn place_resource_randomly(
