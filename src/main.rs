@@ -11,7 +11,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crossterm::{
-    event::{self, Event, KeyCode},
+    event::{self, Event},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -104,11 +104,9 @@ fn main() -> io::Result<()> {
 
         let timeout = tick_rate.saturating_sub(last_tick.elapsed());
         if event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                if key.code == KeyCode::Char('q') {
-                    shared.lock().unwrap().active = false;
-                    break;
-                }
+            if let Event::Key(_) = event::read()? {
+                shared.lock().unwrap().active = false;
+                break;
             }
         }
 
