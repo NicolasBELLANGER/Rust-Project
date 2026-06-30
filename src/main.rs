@@ -33,7 +33,7 @@ fn main() -> io::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let shared = new_shared(20, 20);
+    let shared = new_shared(40, 40);
 
     // Initialiser les positions des scouts à la base, puis les spawner
     let (tx, rx) = mpsc::channel::<RobotMessage>();

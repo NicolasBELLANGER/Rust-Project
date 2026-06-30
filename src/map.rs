@@ -45,15 +45,15 @@ impl Map {
                 // Fbm sort dans [-1.0, 1.0] environ
                 let field_val = field.get([nx, ny]);
                 // Perlin basique sort dans [-0.7, 0.7] environ
-                let resource_val = resource_layer.get([nx * 2.5, ny * 2.5]);
+                let resource_val = resource_layer.get([nx * 4.0, ny * 4.0]);
 
                 tiles[y][x] = if field_val > 0.15 {
                     // Zones hautes = obstacles (rochers, murs)
                     MapTile::Obstacle
-                } else if field_val < -0.2 && resource_val > 0.45 {
+                } else if field_val < -0.2 && resource_val > 0.6 {
                     // Zones basses avec pic resource → cristaux
                     MapTile::Crystal(rng.gen_range(50..=200))
-                } else if field_val < -0.1 && resource_val < -0.45 {
+                } else if field_val < -0.2 && resource_val < -0.6 {
                     // Zones basses avec creux resource → énergie
                     MapTile::Energy(rng.gen_range(50..=200))
                 } else {
