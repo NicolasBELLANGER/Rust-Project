@@ -22,8 +22,8 @@ use base::Base;
 use messages::RobotMessage;
 use robot::{Collector, Scout};
 
-const NUM_SCOUTS: usize = 5;
-const NUM_COLLECTORS: usize = 2;
+const NUM_SCOUTS: usize = 10;
+const NUM_COLLECTORS: usize = 10;
 
 fn main() -> io::Result<()> {
     enable_raw_mode()?;
@@ -33,7 +33,7 @@ fn main() -> io::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let shared = new_shared(40, 40);
+    let shared = new_shared(60, 60);
 
     // Initialiser les positions des scouts à la base, puis les spawner
     let (tx, rx) = mpsc::channel::<RobotMessage>();
