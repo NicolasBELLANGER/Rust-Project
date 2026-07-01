@@ -40,7 +40,9 @@ impl Map {
                 let field_val = field.get([nx, ny]);
                 let resource_val = resource_layer.get([nx * 6.0, ny * 6.0]);
 
-                tiles[y][x] = if field_val < -0.15 && resource_val > 0.45 && rng.gen_bool(0.10) {
+                tiles[y][x] = if field_val > 0.2 {
+                    MapTile::Obstacle
+                } else if field_val < -0.15 && resource_val > 0.45 && rng.gen_bool(0.10) {
                     MapTile::Crystal(rng.gen_range(50..=200))
                 } else if field_val < -0.15 && resource_val < -0.45 && rng.gen_bool(0.10) {
                     MapTile::Energy(rng.gen_range(50..=200))
@@ -52,7 +54,6 @@ impl Map {
 
         let base_x = width / 2;
         let base_y = height / 2;
-        Self::place_obstacle_islands(&mut tiles, width, height, base_x, base_y, &mut rng);
 
         // Zone sûre autour de la base
         for dy in -2i32..=2 {
@@ -88,111 +89,6 @@ impl Map {
             tiles,
             width,
             height,
-        }
-    }
-
-    /// Place des îlots d'obstacles : petits blocs compacts (4–10 cases), espacés.
-    fn place_obstacle_islands(
-        tiles: &mut [Vec<MapTile>],
-        width: usize,
-        height: usize,
-        base_x: usize,
-        base_y: usize,
-        rng: &mut impl Rng,
-    ) {
-        let target_islands = (width * height) / 50;
-        let min_spacing = 4;
-        let mut placed = 0usize;
-
-        for _ in 0..target_islands * 30 {
-            if placed >= target_islands {
-                break;
-            }
-
-            let cx = rng.gen_range(1..width.saturating_sub(1));
-            let cy = rng.gen_range(1..height.saturating_sub(1));
-
-            if (cx as i32 - base_x as i32).abs() <= 5 && (cy as i32 - base_y as i32).abs() <= 5 {
-                continue;
-            }
-            if !matches!(tiles[cy][cx], MapTile::Empty) {
-                continue;
-            }
-            if Self::obstacle_nearby(tiles, width, height, cx, cy, min_spacing) {
-                continue;
-            }
-
-            Self::grow_island(tiles, width, height, cx, cy, rng.gen_range(7..=15), rng);
-            placed += 1;
-        }
-    }
-
-    fn obstacle_nearby(
-        tiles: &[Vec<MapTile>],
-        width: usize,
-        height: usize,
-        cx: usize,
-        cy: usize,
-        radius: i32,
-    ) -> bool {
-        for dy in -radius..=radius {
-            for dx in -radius..=radius {
-                let nx = cx as i32 + dx;
-                let ny = cy as i32 + dy;
-                if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
-                    if matches!(tiles[ny as usize][nx as usize], MapTile::Obstacle) {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
-    }
-
-    /// Étend un îlot de manière organique à partir du centre.
-    fn grow_island(
-        tiles: &mut [Vec<MapTile>],
-        width: usize,
-        height: usize,
-        cx: usize,
-        cy: usize,
-        target_size: usize,
-        rng: &mut impl Rng,
-    ) {
-        let mut frontier = vec![(cx, cy)];
-        tiles[cy][cx] = MapTile::Obstacle;
-        let mut count = 1usize;
-
-        while count < target_size && !frontier.is_empty() {
-            let idx = rng.gen_range(0..frontier.len());
-            let (x, y) = frontier[idx];
-
-            let mut dirs = [(0i32, 1i32), (0, -1), (1, 0), (-1, 0)];
-            for i in (1..dirs.len()).rev() {
-                let j = rng.gen_range(0..=i);
-                dirs.swap(i, j);
-            }
-
-            let mut grew = false;
-            for (dx, dy) in dirs {
-                let nx = x as i32 + dx;
-                let ny = y as i32 + dy;
-                if nx < 0 || nx >= width as i32 || ny < 0 || ny >= height as i32 {
-                    continue;
-                }
-                let (nx, ny) = (nx as usize, ny as usize);
-                if matches!(tiles[ny][nx], MapTile::Empty) {
-                    tiles[ny][nx] = MapTile::Obstacle;
-                    frontier.push((nx, ny));
-                    count += 1;
-                    grew = true;
-                    break;
-                }
-            }
-
-            if !grew {
-                frontier.swap_remove(idx);
-            }
         }
     }
 
